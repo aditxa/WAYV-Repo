@@ -1,1 +1,5 @@
-intro voice command active , [say __ or __]=== add
+add audio breifing/intro when mode switched from rolldown "switching to X mode" and 
+make voice commands turned on by default
+make  error analysis matrix like the ss [impppp]
+make the repeat, hint,pause ... buttons functional
+make th export button fucntional, return SessionID,Timestamp,Mode,Accuracy,Latency,Attempts,Errors
