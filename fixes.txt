@@ -1,0 +1,1 @@
+intro voice command active , [say __ or __]=== add
