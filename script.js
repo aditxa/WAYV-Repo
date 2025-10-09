@@ -1,11 +1,14 @@
 
 if ("serial" in navigator) {
-    // DataCollector and BrailleModel classes remain the same.
+    // DataCollector class remains the same.
     class DataCollector {
         constructor() {
             this.sessionId = Date.now();
             this.attemptHistory = [];
             this.errorRates = {};
+            this.sessionLog = []; 
+
+
         }
 
         startNewAttempt(letter) {
@@ -16,14 +19,18 @@ if ("serial" in navigator) {
         }
 
         recordResponse(isCorrect, letter) {
-            const latency = Date.now() - this.lastPromptTime;
+            const latency = (Date.now() - this.lastPromptTime) / 1000; // Latency in seconds
+            if (!this.errorRates[letter]) {
+            this.errorRates[letter] = { attempts: 0, errors: 0 };
+        }
+
             this.errorRates[letter].attempts++;
             if (!isCorrect) {
                 this.errorRates[letter].errors++;
             }
             this.attemptHistory.unshift({
                 letter: letter.toUpperCase(),
-                time: latency / 1000,
+                time: latency ,
                 correct: isCorrect,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             });
@@ -48,7 +55,27 @@ if ("serial" in navigator) {
                 .slice(0, 3);
         }
 
-        saveToCSV() { /* This function remains unchanged */ }
+        saveToCSV() {
+            if (this.attemptHistory.length === 0) {
+                alert("No session data to export.");
+                return;
+            }
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Timestamp,Letter,IsCorrect,ResponseTime(s)\r\n"; // Header
+
+            this.attemptHistory.forEach(attempt => {
+                const row = `${attempt.timestamp},${attempt.letter},${attempt.correct},${attempt.time.toFixed(2)}`;
+                csvContent += row + "\r\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `wayv_session_${this.sessionId}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
     }
 
     class EnhancedBrailleTeacher {
@@ -57,11 +84,13 @@ if ("serial" in navigator) {
             this.port = null;
             this.writer = null;
             this.reader = null;
+            this.promptTimeout = null;
+            this.lastProcessedGesture = null;
+
 
             // Session and Mode Control
-            this.mode = "learning";
+            this.mode = "learning"; // Default mode
             this.isPaused = false;
-            this.isListening = false;
             this.recognition = null;
             this.sessionStartTime = null;
             this.sessionTimerInterval = null;
@@ -82,9 +111,20 @@ if ("serial" in navigator) {
             this.currentWordLetterIndex = 0;
             this.alphabetFolds = { "a": [1], "b": [1, 2], "c": [1, 4], "d": [1, 4, 5], "e": [1, 5], "f": [1, 2, 4], "g": [1, 2, 4, 5], "h": [1, 2, 5], "i": [2, 4], "j": [2, 4, 5], "k": [1, 3], "l": [1, 2, 3], "m": [1, 3, 4], "n": [1, 3, 4, 5], "o": [1, 3, 5], "p": [1, 2, 3, 4], "q": [1, 2, 3, 4, 5], "r": [1, 2, 3, 5], "s": [2, 3, 4], "t": [2, 3, 4, 5], "u": [1, 3, 6], "v": [1, 2, 3, 6], "w": [2, 4, 5, 6], "x": [1, 3, 4, 6], "y": [1, 3, 4, 5, 6], "z": [1, 3, 5, 6] };
             
+            // MODIFICATION: Voice commands are now always on by default.
+            this.isListening = true; 
+
             this.initializeUI();
             this.initializeEventListeners();
             this.initializeSpeechRecognition();
+            
+            // MODIFICATION: Start listening immediately on page load and inform the user.
+            if (this.isListening && this.recognition) {
+                this.recognition.start();
+                this.speak("Voice commands are active. Please connect your device to begin.");
+                document.getElementById('voice-status').textContent = 'Active';
+                document.getElementById('voice-status').style.color = '#2ecc71';
+            }
         }
 
         initializeUI() {
@@ -95,7 +135,15 @@ if ("serial" in navigator) {
         initializeEventListeners() {
             document.getElementById("connectBtn").addEventListener("click", () => this.connectToSerial());
             document.getElementById("modeSelect").addEventListener("change", (e) => this.switchMode(e.target.value));
-            document.getElementById("voiceBtn").addEventListener("click", () => this.toggleVoiceControl());
+            // MODIFICATION: The voice button is no longer needed to toggle functionality.
+            // It can be removed from HTML or just have its listener removed.
+            // document.getElementById("voiceBtn").addEventListener("click", () => this.toggleVoiceControl());
+            document.getElementById("downloadBtn").addEventListener("click", () => this.dataCollector.saveToCSV());
+            document.getElementById("repeatBtn").addEventListener("click", () => this.handleRepeatCommand());
+            document.getElementById("hintBtn").addEventListener("click", () => this.provideHint());
+            document.getElementById("skipBtn").addEventListener("click", () => this.skipPrompt());
+            document.getElementById("pauseResumeBtn").addEventListener("click", () => this.togglePause());
+            document.getElementById("progressBtn").addEventListener("click", () => this.handleProgressQuery());
         }
 
         async connectToSerial() {
@@ -109,15 +157,19 @@ if ("serial" in navigator) {
                 document.getElementById('connectionStatus').className = 'connected';
                 this.sessionStartTime = Date.now();
                 this.startSessionTimer();
-                if (!this.introDone) {
-                    await this.playIntroduction();
-                    this.introDone = true;
-                }                
-                this.readSerialLoop();
-                this.speak("Device connected. Let's begin!");
-                this.nextPrompt();
+                
+                // MODIFICATION: New, streamlined introduction flow as requested.
+                await this.speak("Device connected. Voice commands are now fully active.");
+                await this.playIntroduction();
+                await this.speak("Let's start with learning mode.");
+                
+                this.readSerialLoop(); // Start listening for glove input
+                this.nextPrompt();     // Give the first prompt ('A')
 
-            } catch (error) { console.error(`Connection failed: ${error}`); }
+            } catch (error) { 
+                console.error(`Connection failed: ${error}`);
+                this.speak("There was an error connecting to the device.");
+            }
         }
 
         async playIntroduction() {
@@ -126,19 +178,23 @@ if ("serial" in navigator) {
                 { num: 3, desc: "left index finger" }, { num: 4, desc: "right index finger" },
                 { num: 5, desc: "right middle finger" }, { num: 6, desc: "right ring finger" }
             ];
-            await this.speak("Welcome to Waive! Let me introduce the finger mappings.");
+            await this.speak("Let me introduce the finger mappings.");
             for (const finger of fingers) {
                 await this.speak(`Finger ${finger.num} is your ${finger.desc}.`);
-                await this.writeToSerial(String(finger.num)); // This now works reliably
+                await this.writeToSerial(String(finger.num));
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
-            await this.speak("Introduction complete. Let's begin!");
+            await this.speak("Introduction complete.");
         }        
 
         async writeToSerial(data) {
             if (this.writer) {
-                const encoder = new TextEncoder();
-                await this.writer.write(encoder.encode(data));
+                try {
+                    const encoder = new TextEncoder();
+                    await this.writer.write(encoder.encode(data));
+                } catch (error) {
+                    console.error("Error writing to serial port:", error);
+                }
             }
         }
 
@@ -156,37 +212,44 @@ if ("serial" in navigator) {
 
         nextPrompt() {
             if (this.isPaused) return;
-            let letter, word = "-";
+            let letter;
 
             if (this.mode === 'learning') {
                 letter = this.alphabet[this.currentLetterIndex];
                 document.getElementById('current-word-display').textContent = 'A-Z Path';
-                this.updateBraillePatternDisplay(letter);
-                this.dataCollector.startNewAttempt(letter);
-                const fingers = this.alphabetFolds[letter];
-                this.speakWithVibration(`Next is ${letter.toUpperCase()}. Fold ${fingers.join(' and ')}.`, fingers);
             } else { // Practice Mode
-                word = this.words[this.currentWordIndex];
+                const word = this.words[this.currentWordIndex];
                 letter = word[this.currentWordLetterIndex];
                 document.getElementById('current-word-display').textContent = word.toUpperCase();
-                this.updateBraillePatternDisplay(letter);
-                this.dataCollector.startNewAttempt(letter);
-                const fingers = this.alphabetFolds[letter];
-                this.speakWithVibration(`For ${word}, next is ${letter.toUpperCase()}. Fold ${fingers.join(' and ')}.`, fingers);
             }
+
+            this.updateBraillePatternDisplay(letter);
+            this.dataCollector.startNewAttempt(letter);
+            const fingers = this.alphabetFolds[letter];
+            this.speakWithVibration(`For ${letter.toUpperCase()}, fold ${fingers.join(' and ')}.`, fingers);
             this.updateMasteryPath();
+
         }
 
         handleBrailleInput(data) {
-            if (this.isPaused || !data) return;
+        if (this.isPaused || !data) return;
+        if (data === this.lastProcessedGesture) {return;} // Ignore duplicate gestures
+        this.lastProcessedGesture = data;
 
-            this.totalInputs++;
-            const currentLetter = this.mode === 'learning'
-                ? this.alphabet[this.currentLetterIndex]
-                : this.words[this.currentWordIndex][this.currentWordLetterIndex];
+        if (this.promptTimeout) {
+            clearTimeout(this.promptTimeout);
+        }        
+        this.totalInputs++;
+        const currentLetter = this.mode === 'learning'
+            ? this.alphabet[this.currentLetterIndex]
+            : this.words[this.currentWordIndex][this.currentWordLetterIndex];
 
-            const isCorrect = data.toLowerCase() === currentLetter;
-            this.dataCollector.recordResponse(isCorrect, currentLetter);
+            // MODIFICATION: Added console log for easier debugging of glove input.
+        console.log(`Received: '${data}', Expected: '${currentLetter}'`);
+
+    const receivedChar = data.trim().toLowerCase().charAt(0);
+    const isCorrect = receivedChar === currentLetter;            
+    this.dataCollector.recordResponse(isCorrect, currentLetter);
 
             if (isCorrect) {
                 this.correctInputs++;
@@ -197,7 +260,7 @@ if ("serial" in navigator) {
             } else {
                 this.correctStreak = 0;
                 this.speak("Not quite. Let's try that letter again.");
-                setTimeout(() => this.nextPrompt(), 1200); // Re-prompt the same letter
+                this.promptTimeout = setTimeout(() => this.nextPrompt(), 1200); 
             }
             this.updateAllStats();
         }
@@ -207,6 +270,7 @@ if ("serial" in navigator) {
             if (attempts <= 2 && this.mode === 'learning') {
                 this.masteredLetters.add(letter);
             }
+            // MODIFICATION: The stray underscore causing a syntax error here has been REMOVED.
             this.speak("Correct!");
 
             if (this.mode === 'learning') {
@@ -220,65 +284,117 @@ if ("serial" in navigator) {
                     setTimeout(() => this.speak(`Your next word is ${this.words[this.currentWordIndex]}.`), 1000);
                 }
             }
-            setTimeout(() => this.nextPrompt(), 1200);
+        this.promptTimeout = setTimeout(() => this.nextPrompt(), 1200);
         }
 
-        // --- VOICE COMMANDS ---
+        // --- VOICE AND BUTTON COMMANDS ---
         initializeSpeechRecognition() {
             if ('webkitSpeechRecognition' in window) {
                 this.recognition = new webkitSpeechRecognition();
                 this.recognition.continuous = true;
-                this.recognition.interimResults = false;
+                
+                // FIX 1: Enable interim results to see low-confidence guesses.
+                // This lets us see what the engine is "thinking" in real-time.
+                this.recognition.interimResults = true; 
+                
                 this.recognition.lang = 'en-US';
 
                 this.recognition.onresult = (event) => {
-                    const command = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-                    console.log("Voice command:", command);
-                    this.handleVoiceCommand(command);
+                    // We now loop through the results because interim results can have multiple parts.
+                    let final_transcript = '';
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            final_transcript += event.results[i][0].transcript;
+                        }
+                    }
+                    
+                    const command = final_transcript.trim().toLowerCase();
+                    if (command) { // Only process if we have a final command
+                        console.log("Final command received:", command);
+                        this.handleVoiceCommand(command);
+                    }
                 };
-                this.recognition.onerror = (event) => console.error('Speech recognition error:', event.error);
-                this.recognition.onend = () => { if (this.isListening) this.recognition.start(); };
-            }
-        }
 
-        toggleVoiceControl() {
-            if (!this.recognition) return;
-            this.isListening = !this.isListening;
-            if (this.isListening) {
-                this.recognition.start();
-                this.speak("Voice commands activated.");
-                document.getElementById('voice-status').textContent = 'Active';
-            } else {
-                this.recognition.stop();
-                this.speak("Voice commands deactivated.");
-                document.getElementById('voice-status').textContent = 'Inactive';
+                this.recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                };
+                
+                this.recognition.onend = () => {
+                    // This will restart the recognition service if it stops.
+                    if (this.isListening) {
+                        console.log("[Speech engine] Service ended, restarting...");
+                        this.recognition.start();
+                    }
+                };
+
+                // FIX 2: Add more diagnostic event listeners.
+                this.recognition.onstart = () => {
+                    console.log("[Speech engine] Recognition service started.");
+                };
+
+                this.recognition.onaudiostart = () => {
+                    console.log("[Speech engine] Audio capture started.");
+                };
+                
+                this.recognition.onsoundstart = () => {
+                    console.log("[Speech engine] Sound detected.");
+                };
+                
+                this.recognition.onspeechstart = () => {
+                    console.log("[Speech engine] Speech detected.");
+                };
+                
+                this.recognition.onspeechend = () => {
+                    console.log("[Speech engine] Speech ended.");
+                };
+                
+                this.recognition.onaudioend = () => {
+                    console.log("[Speech engine] Audio capture ended.");
+                };
+
+                // This event is crucial. It fires when speech is detected but not recognized.
+                this.recognition.onnomatch = () => {
+                    console.warn("[Speech engine] Speech detected, but no match found (low confidence).");
+                };            } else {
+                console.warn("Speech Recognition API not supported in this browser.");
             }
         }
         
         handleVoiceCommand(command) {
-            if (command.includes("learning")) {
+            // MODIFICATION: Added more flexible command terms like "practice mode"
+            if (command.includes("learning") || command.includes("learning mode")) {
                 this.speak("Switching to learning mode.");
                 this.switchMode("learning");
-            } else if (command.includes("practice")) {
+            } else if (command.includes("practice") || command.includes("practice mode")) {
                 this.speak("Switching to practice mode.");
                 this.switchMode("practice");
-            } else if (command.includes("accuracy") || command.includes("how am i doing")) {
+            } else if (command.includes("accuracy") || command.includes("how am i doing") || command.includes("progress")) {
                 this.handleProgressQuery();
-            } else if (command.includes("repeat")) {
+            } else if (command.includes("repeat") || command.includes("again")) {
                 this.handleRepeatCommand();
             } else if (command.includes("remaining") || command.includes("left")) {
                 this.handleRemainingQuery();
-            } else if (command.includes("hint")) {
+            } else if (command.includes("hint") || command.includes("clue")) {
                 this.provideHint();
-            } else if (command.includes("skip")) {
+            } else if (command.includes("skip") || command.includes("next")) {
                 this.skipPrompt();
-            } else if (command.includes("pause")) {
-                this.isPaused = true;
+            } else if (command.includes("pause") || command.includes("stop")) {
+                if (!this.isPaused) this.togglePause();
+            } else if (command.includes("resume") || command.includes("continue") || command.includes("start")) {
+                if (this.isPaused) this.togglePause();
+            }
+        }
+
+        togglePause() {
+            this.isPaused = !this.isPaused;
+            const button = document.getElementById('pauseResumeBtn');
+            if (this.isPaused) {
+                button.textContent = 'Resume';
                 this.speak("Session paused.");
-            } else if (command.includes("resume") || command.includes("continue")) {
-                this.isPaused = false;
+            } else {
+                button.textContent = 'Pause';
                 this.speak("Resuming session.");
-                this.nextPrompt();
+                this.nextPrompt(); // Restart the prompt cycle
             }
         }
 
@@ -287,7 +403,7 @@ if ("serial" in navigator) {
             let report = `Your current accuracy is ${accuracy.toFixed(0)} percent. `;
             const focus = this.dataCollector.getFocusAreas();
             if (focus.length > 0) {
-                report += `You might want to focus a little more on letters like ${focus.map(f => f.letter).join(', ')}. `;
+                report += `You might want to focus a little more on letters like ${focus.map(f => f.letter.toUpperCase()).join(', ')}. `;
             }
             report += "You're doing a great job!";
             this.speak(report);
@@ -295,6 +411,7 @@ if ("serial" in navigator) {
 
         handleRepeatCommand() {
             this.speak("Repeating the instruction.");
+            // nextPrompt uses the current index, so calling it again repeats the prompt
             this.nextPrompt();
         }
 
@@ -328,9 +445,15 @@ if ("serial" in navigator) {
         }
         
         // --- UTILITY AND UI UPDATE FUNCTIONS ---
-        switchMode(newMode) {
+        async switchMode(newMode) {
+            if (this.mode === newMode) {
+                this.speak(`You are already in ${newMode} mode.`);
+                return;
+            }
+            await this.speak(`Switching to ${newMode} mode.`);
             this.mode = newMode;
             document.getElementById('modeSelect').value = newMode;
+            // Reset progress counters for a clean switch
             this.currentLetterIndex = 0;
             this.currentWordIndex = 0;
             this.currentWordLetterIndex = 0;
@@ -338,24 +461,16 @@ if ("serial" in navigator) {
         }
 
         speakWithVibration(text, fingers) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.pitch = 1.2;
-            utterance.rate = 1.1;
-
-            const foldIndex = text.toLowerCase().indexOf('fold');
-            if (foldIndex !== -1 && fingers.length > 0) {
-                const delay = (foldIndex / text.length) * (text.split(' ').length * 200);
-                setTimeout(() => {
+            this.speak(text).then(() => {
+                // Send vibration haptics after speech is complete
+                if (fingers && fingers.length > 0) {
                     fingers.forEach((finger, i) => {
                         setTimeout(() => this.writeToSerial(String(finger)), i * 150);
                     });
-                }, delay);
-            }
-            speechSynthesis.speak(utterance);
+                }
+            });
         }
 
-        // All UI update functions (updateAllStats, updateMasteryPath, etc.) remain largely the same as my previous response.
-        // They are already designed to be modular and will work with the new state management.
         updateAllStats() {
             const accuracy = this.totalInputs > 0 ? (this.correctInputs / this.totalInputs * 100) : 0;
             const history = this.dataCollector.attemptHistory;
@@ -411,6 +526,10 @@ if ("serial" in navigator) {
         updateAttemptHistoryList() {
             const list = document.getElementById('history-list');
             list.innerHTML = '';
+            if (this.dataCollector.attemptHistory.length === 0) {
+                 list.innerHTML = '<li class="placeholder">Connect the device to begin tracking attempts.</li>';
+                 return;
+            }
             this.dataCollector.attemptHistory.forEach(item => {
                 const li = document.createElement('li');
                 li.className = item.correct ? 'correct' : 'incorrect';
@@ -442,6 +561,7 @@ if ("serial" in navigator) {
         startSessionTimer() {
             if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
             this.sessionTimerInterval = setInterval(() => {
+                if (this.isPaused) return;
                 const elapsed = Math.floor((Date.now() - this.sessionStartTime) / 1000);
                 const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
                 const seconds = String(elapsed % 60).padStart(2, '0');
@@ -452,20 +572,26 @@ if ("serial" in navigator) {
         speak(text) {
             return new Promise(resolve => {
                 if ('speechSynthesis' in window) {
+                    speechSynthesis.cancel();
                     const utterance = new SpeechSynthesisUtterance(text);
                     utterance.pitch = 1.2;
                     utterance.rate = 1.1;
                     utterance.onend = resolve;
+                    utterance.onerror = (e) => {
+                        console.error("Speech synthesis error:", e);
+                        resolve(); // Resolve promise even on error
+                    };
                     speechSynthesis.speak(utterance);
                 } else {
-                    resolve();
+                    resolve(); // Resolve if speech synthesis is not available
                 }
             });
         }
     }
     
+    // Initialize the application
     new EnhancedBrailleTeacher();
 
 } else {
-    alert("Web Serial API not supported. Please use Chrome or Edge.");
+    alert("Web Serial API not supported. Please use a modern browser like Chrome or Edge.");
 }

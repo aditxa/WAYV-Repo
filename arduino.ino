@@ -52,11 +52,11 @@ void loop()
     
     switch(received) {
       case '1': vibrateFinger(m1, 2000); break;
-      case '2': vibrateFinger(m2, 3600); break;
-      case '3': vibrateFinger(m3, 3000); break;
-      case '4': vibrateFinger(m4, 3000); break;
-      case '5': vibrateFinger(m5, 2600); break;
-      case '6': vibrateFinger(m6, 2600); break;
+      case '2': vibrateFinger(m2, 2000); break;
+      case '3': vibrateFinger(m3, 2000); break;
+      case '4': vibrateFinger(m4, 2000); break;
+      case '5': vibrateFinger(m5, 2000); break;
+      case '6': vibrateFinger(m6, 2000); break;
       case 'X': 
         digitalWrite(m1, LOW);
         digitalWrite(m2, LOW);
@@ -298,14 +298,14 @@ void loop()
    
   }
 
-  else if((flex1>850)&&(flex2>850))
+  else if((flex1>680)&&(flex2>640))
   {
    Serial.print("b");digitalWrite(buzzer,HIGH);
    digitalWrite(m1,HIGH);
     digitalWrite(m2,HIGH);
   }
   
-  else if((flex1>850)&&(flex4>840))
+  else if((flex1>640)&&(flex4>775))
   {
    Serial.print("c");digitalWrite(buzzer,HIGH);
    digitalWrite(m1,HIGH);
@@ -330,7 +330,7 @@ void loop()
   //  digitalWrite(m2,HIGH);
   //  digitalWrite(m4,HIGH);
   // }
-  else if(flex1>850)  
+  else if(flex1>680)  
   {
    Serial.print("a");digitalWrite(buzzer,HIGH);
    digitalWrite(m1,HIGH); 
@@ -344,6 +344,7 @@ void loop()
    digitalWrite(m4,LOW);
    digitalWrite(m5,LOW);
    digitalWrite(m6,LOW);
+
   }
   delay(100);
  }
