@@ -104,7 +104,8 @@ if ("serial" in navigator) {
             this.masteredLetters = new Set();
             
             // Content
-            this.alphabet = "abcdefghijklmnopqrstuvwxyz".split("");
+            // this.alphabet = "abcdefghijklmnopqrstuvwxyz".split("");
+            this.alphabet = ["a", "b", "c", "d", "e", "f"];
             this.words = ["cat", "bat", "sun", "moon", "star", "tree", "ice", "bee"];
             this.currentLetterIndex = 0;
             this.currentWordIndex = 0;
