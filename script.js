@@ -136,6 +136,7 @@ if ("serial" in navigator) {
         initializeEventListeners() {
             document.getElementById("connectBtn").addEventListener("click", () => this.connectToSerial());
             document.getElementById("modeSelect").addEventListener("change", (e) => this.switchMode(e.target.value));
+            document.getElementById("endBtn").addEventListener("click", () => this.endSession());
             // MODIFICATION: The voice button is no longer needed to toggle functionality.
             // It can be removed from HTML or just have its listener removed.
             // document.getElementById("voiceBtn").addEventListener("click", () => this.toggleVoiceControl());
@@ -146,7 +147,51 @@ if ("serial" in navigator) {
             document.getElementById("pauseResumeBtn").addEventListener("click", () => this.togglePause());
             document.getElementById("progressBtn").addEventListener("click", () => this.handleProgressQuery());
         }
+        async endSession() {
+    // 1. Download the CSV automatically
+            this.dataCollector.saveToCSV();
 
+            // 2. Stop the session timer
+            if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
+
+            // 3. Close Serial Connection if it exists
+            try {
+                if (this.reader) {
+                    await this.reader.cancel();
+                    this.reader.releaseLock();
+                }
+                if (this.writer) {
+                    this.writer.releaseLock();
+                }
+                if (this.port) {
+                    await this.port.close();
+                }
+            } catch (e) {
+                console.log("Connection cleanup:", e);
+            }
+
+            // 4. Reset Class State
+            this.port = null;
+            this.writer = null;
+            this.reader = null;
+            this.isPaused = false;
+            this.currentLetterIndex = 0;
+            this.masteredLetters = new Set();
+            this.correctInputs = 0;
+            this.totalInputs = 0;
+            
+            // 5. Reset UI to initial state
+            document.getElementById('connectionStatus').textContent = '● Disconnected';
+            document.getElementById('connectionStatus').className = 'disconnected';
+            document.getElementById('sessionTime').textContent = 'Session: 00m 00s';
+            document.getElementById('current-word-display').textContent = '-';
+            this.updateAllStats();
+            this.updateMasteryPath();
+
+            // 6. Voice prompt for the user to reconnect
+            this.speak("Session ended. Data has been exported. Please connect your device again to start a new session.");
+        }
+        
         async connectToSerial() {
             try {
                 this.port = await navigator.serial.requestPort();
