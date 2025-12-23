@@ -51,8 +51,10 @@ header {
 #connectBtn:hover { background-color: #0056b3; }
 #voiceBtn { font-size: 1.2rem; padding: 0.4rem 0.7rem; }
 /* Hide the Hint button from the Command Panel */
-#hintBtn {
-    display: none;
+#hintBtn {display: none;}
+#endBtn:hover {
+    background-color: #b02a37 !important; /* A darker red on hover */
+    border-color: #a52834 !important;
 }
 .dashboard { display: flex; padding: 1.5rem; gap: 1.5rem; align-items: flex-start; }
 .dashboard-column { flex: 1; display: flex; flex-direction: column; gap: 1.5rem; }
