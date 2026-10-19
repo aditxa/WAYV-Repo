@@ -1,0 +1,268 @@
+#define adc1 A5
+#define adc2 A4
+#define adc3 A3
+#define adc4 A2
+#define adc5 A1
+#define adc6 A0
+#define buzzer 11
+#define ledd 13
+#define m1 5
+#define m2 6
+#define m3 7
+#define m4 4
+#define m5 3
+#define m6 2
+#define mod 8
+int flex2=0,flex1=0,flex3=0,flex4=0,flex5=0,flex6=0,swt;
+
+bool introDone = false;
+
+void vibrateFinger(int finger, int duration) {
+  digitalWrite(finger, HIGH);
+  delay(duration);
+  digitalWrite(finger, LOW);
+  delay(100);
+}
+
+void setup() 
+{  
+ pinMode(mod,INPUT_PULLUP);
+ pinMode(ledd,OUTPUT);
+  pinMode(buzzer,OUTPUT);
+  pinMode(m1,OUTPUT);
+  pinMode(m2,OUTPUT);
+  pinMode(m3,OUTPUT);
+  pinMode(m4,OUTPUT);
+  pinMode(m5,OUTPUT);
+  pinMode(m6,OUTPUT);
+
+  analogWrite(buzzer, 40);
+  delay(120);
+  analogWrite(buzzer, 0);
+  digitalWrite(ledd,HIGH);
+
+ Serial.begin(9600 );
+ //Serial.println("Initialize MPU6050");
+}
+
+void loop()
+{
+// --- NEW SERIAL READING LOGIC ---
+  if (Serial.available() > 0) {
+    // Read the whole string until you press Enter
+    String receivedStr = Serial.readStringUntil('\n');
+    receivedStr.trim(); // Cleans up invisible carriage return characters
+
+    // Check for the "vb" command
+    if (receivedStr == "vb") {
+      vibrateFinger(m1, 500);
+      vibrateFinger(m2, 500);
+      vibrateFinger(m3, 500);
+      vibrateFinger(m4, 500);
+      vibrateFinger(m5, 500);
+      vibrateFinger(m6, 500);
+    } 
+    // Fall back to original single-character switch statement
+    else if (receivedStr.length() == 1) {
+      char received = receivedStr.charAt(0);
+      
+      switch(received) {
+        case '1': vibrateFinger(m1, 500); break;
+        case '2': vibrateFinger(m2, 500); break;
+        case '3': vibrateFinger(m3, 500); break;
+        case '4': vibrateFinger(m4, 500); break;
+        case '5': vibrateFinger(m5, 500); break;
+        case '6': vibrateFinger(m6, 500); break;
+        case 'B': 
+          // Two short trigger beeps
+          digitalWrite(buzzer, HIGH);
+          delay(60);
+          digitalWrite(buzzer, LOW);
+          delay(60);
+          digitalWrite(buzzer, HIGH);
+          delay(60);
+          digitalWrite(buzzer, LOW);
+          break;
+        case 'X': 
+          digitalWrite(m1, LOW);
+          digitalWrite(m2, LOW);
+          digitalWrite(m3, LOW);
+          digitalWrite(m4, LOW);
+          digitalWrite(m5, LOW);
+          digitalWrite(m6, LOW);
+          break;
+      }
+    }
+  }
+flex1 = analogRead(adc3);  // 1 - Left index (A3)
+flex2 = analogRead(adc2);  // 2 - Left middle (A4)
+flex3 = analogRead(adc1);  // 3 - Left ring (A5)
+
+flex4 = analogRead(adc4);  // 4 - Right index (A2)
+flex5 = analogRead(adc5);  // 5 - Right middle (A1)
+flex6 = analogRead(adc6);  // 6 - Right ring (A0)
+  delay(10);
+//  ff();
+//  vv();
+  swt=digitalRead(mod);
+  if(swt==LOW)
+  {
+   digitalWrite(ledd,HIGH);
+   single();
+  }
+  else
+  {
+   digitalWrite(ledd,LOW);
+   if((flex1>900)&&(flex2>900)&&(flex3>900)&&(flex4>900)&&(flex5>900)&&(flex6>900))
+   {
+    analogWrite(buzzer, 40);
+    digitalWrite(m1,HIGH);
+    digitalWrite(m2,HIGH);
+    digitalWrite(m3,HIGH);
+    digitalWrite(m4,HIGH);
+    digitalWrite(m5,HIGH);
+    digitalWrite(m6,HIGH);
+   Serial.println("");
+  }
+   else if((flex1>340)&&(flex4>460)&&(flex5>500))
+  {
+   Serial.print("d");analogWrite(buzzer, 40);
+   digitalWrite(m1,HIGH);
+    digitalWrite(m4,HIGH);
+    digitalWrite(m5,HIGH);
+  }  
+  else if((flex1>340)&&(flex5>600))
+  {
+   Serial.print("e");analogWrite(buzzer, 40);
+   digitalWrite(m1,HIGH);
+    digitalWrite(m5,HIGH);
+  }
+  else if((flex1>275)&&(flex2>140)&&(flex4>485))
+  {
+   Serial.print("f");analogWrite(buzzer, 40);
+   digitalWrite(m1,HIGH);
+    digitalWrite(m5,HIGH);
+  } 
+    else if((flex1>340)&&(flex2>210))
+  {
+   Serial.print("b");analogWrite(buzzer,80);
+   digitalWrite(m1,HIGH);
+    digitalWrite(m2,HIGH);
+  }
+ 
+  else if((flex1>360)&&(flex4>360))
+  {
+   Serial.print("c");analogWrite(buzzer, 40);
+   digitalWrite(m1,HIGH);
+    digitalWrite(m4,HIGH);
+
+  }  else if(flex1>505)  
+  {
+   Serial.print("a");analogWrite(buzzer,80);
+   digitalWrite(m1,HIGH); 
+  }
+
+  else
+  {
+   analogWrite(buzzer, 0);
+   digitalWrite(m1,LOW);
+   digitalWrite(m2,LOW);
+   digitalWrite(m3,LOW);
+   digitalWrite(m4,LOW);
+   digitalWrite(m5,LOW);
+   digitalWrite(m6,LOW);
+
+  }
+  delay(100);
+ }
+  delay(100);
+}
+
+void ff()
+{
+ Serial.print(flex1);
+ Serial.print("-");
+ Serial.print(flex2);
+ Serial.print("-");
+ Serial.print(flex3);
+ Serial.print("-");
+ Serial.print(flex4);
+ Serial.print("-");
+ Serial.print(flex5);
+ Serial.print("-");
+ Serial.println(flex6);  
+}
+void vv()
+{
+  Serial.println("Testing vibrator 1");
+  vibrateFinger(m1, 300);
+
+  Serial.println("Testing vibrator 2");
+  vibrateFinger(m2, 300);
+
+  Serial.println("Testing vibrator 3");
+  vibrateFinger(m3, 300);
+
+  Serial.println("Testing vibrator 4");
+  vibrateFinger(m4, 300);
+
+  Serial.println("Testing vibrator 5");
+  vibrateFinger(m5, 300);
+
+  Serial.println("Testing vibrator 6");
+  vibrateFinger(m6, 300);
+
+  Serial.println("Vibrator test complete");
+}
+void single()
+{
+  if(flex1>900)  
+  {
+   digitalWrite(m1,HIGH); 
+  }
+  else
+  {
+   digitalWrite(m1,LOW);
+  }
+  if(flex2>900)  
+  {
+   digitalWrite(m2,HIGH); 
+  }
+  else
+  {
+   digitalWrite(m2,LOW);
+  }
+  if(flex3>900)  
+  {
+   digitalWrite(m3,HIGH); 
+  }
+  else
+  {
+   digitalWrite(m3,LOW);
+  }
+  if(flex4>900)  
+  {
+   digitalWrite(m4,HIGH); 
+  }
+  else
+  {
+   digitalWrite(m4,LOW);
+  }
+  if(flex5>900)  
+  {
+   digitalWrite(m5,HIGH); 
+  }
+  else
+  {
+   digitalWrite(m5,LOW);
+  }
+  if(flex6>900)  
+  {
+   digitalWrite(m6,HIGH); 
+  }
+   else
+  {
+   digitalWrite(m6,LOW);
+  }
+  delay(200);
+}
